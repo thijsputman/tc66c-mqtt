@@ -1,0 +1,14 @@
+{
+  "name": "tc66c-mqtt",
+  "version": "1.0.0",
+  "description": "TC66C-MQTT bridge",
+  "main": "test.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Thijs Putman <thijs@sgraastra.net>",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "node-ble": "^1.4.0"
+  }
+}
