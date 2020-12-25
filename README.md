@@ -5,7 +5,8 @@ to MQTT bridge.
 
 Goal is to keep track of my Raspberry Pi4's electrical load in Home Assistant.
 
-For now it just echo's out the current "Current" (in `A * 10e-5`) reading...
+For now it just publishes a single measurement of voltage, current and power to
+the `tc66c/...` topic and exits.
 
 ## Installation
 
@@ -16,7 +17,10 @@ For now it just echo's out the current "Current" (in `A * 10e-5`) reading...
 ## Usage
 
 ```bash
-node test.js <tc66c-ble-mac-address>
+node test.js <tc66c-ble-mac-address> <mqtt-broker>
+
+# Subscribe to the topic in another shell (using Mosquitto)
+mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 ```
 
 ## References

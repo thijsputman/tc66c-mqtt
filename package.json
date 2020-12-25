@@ -9,6 +9,7 @@
   "author": "Thijs Putman <thijs@sgraastra.net>",
   "license": "BSD-3-Clause",
   "dependencies": {
+    "async-mqtt": "^2.6.1",
     "node-ble": "^1.4.0"
   }
 }
