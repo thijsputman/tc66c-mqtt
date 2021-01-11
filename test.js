@@ -17,9 +17,11 @@ let data;
   const { bluetooth, destroy } = createBluetooth();
 
   const adapter = await bluetooth.defaultAdapter();
+  console.debug("Is powered", await adapter.isPowered());
 
   const device = await adapter.waitDevice(process.argv[2]);
   await device.connect();
+  console.debug("Connected to", await device.getName());
 
   try {
     const gattServer = await device.gatt();
@@ -41,15 +43,13 @@ let data;
       let response = [];
       let length = 0;
       let resolved = false;
-      // Time out after 5 seconds if receive promise is not resolved
-      new Promise(() =>
+      return new Promise((resolve, reject) => {
+        // Time out after 5 seconds if receive promise is not resolved
         setTimeout(() => {
           if (!resolved) {
-            throw "Timed out!";
+            reject("Timed out");
           }
-        }, 5000)
-      );
-      return new Promise((resolve) => {
+        }, 5000);
         rxChr.on("valuechanged", (buffer) => {
           response.push(buffer);
           length += buffer.length;
@@ -72,10 +72,15 @@ let data;
     await rxChr.stopNotifications();
   } catch (error) {
     console.error(error);
-  } finally {
+
     await device.disconnect();
     destroy();
+
+    process.exit(1);
   }
+
+  await device.disconnect();
+  destroy();
 
   let decipher = crypto.createDecipheriv(key_algo, key, "");
   let decrypted = decipher.update(data);
