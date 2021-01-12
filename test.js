@@ -19,6 +19,12 @@ let data;
   const adapter = await bluetooth.defaultAdapter();
   console.debug("Is powered", await adapter.isPowered());
 
+  // It appears discovery is needed to connect?
+  if (!(await adapter.isDiscovering())) {
+    await adapter.startDiscovery();
+  }
+  console.debug(await adapter.devices());
+
   const device = await adapter.waitDevice(process.argv[2]);
   await device.connect();
   console.debug("Connected to", await device.getName());
