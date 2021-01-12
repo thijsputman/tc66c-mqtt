@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const { createBluetooth } = require("node-ble");
 const MQTT = require("async-mqtt");
 const crypto = require("crypto");
@@ -19,11 +21,10 @@ let data;
   const adapter = await bluetooth.defaultAdapter();
   console.debug("Is powered", await adapter.isPowered());
 
-  // It appears discovery is needed to connect?
+  // It appears discovery is needed to (reliably) connect?
   if (!(await adapter.isDiscovering())) {
     await adapter.startDiscovery();
   }
-  console.debug(await adapter.devices());
 
   const device = await adapter.waitDevice(process.argv[2]);
   await device.connect();
