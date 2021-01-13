@@ -2,9 +2,11 @@
 
 Proof-of-concept for a
 [RDTech TC66C](https://www.aliexpress.com/item/32968303350.html) (USB-C load
-meter with Bluetooth LE) to MQTT bridge.
+meter with Bluetooth LE) to MQTT bridge. Simultaneously, a playground for me to
+get more familiar with some advanced Docker/container concepts.
 
-Goal is to keep track of my Raspberry Pi4's electrical load in Home Assistant.
+The ultimate goal is to keep track of my Raspberry Pi4's electrical load in Home
+Assistant.
 
 For now it just publishes a single measurement of voltage, current and power to
 the `tc66c/...` topic and exits.
@@ -82,3 +84,4 @@ mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 
 1. https://sigrok.org/wiki/RDTech_TC66C
 2. https://hub.docker.com/r/thijsputman/tc66c-mqtt
+3. [`📄 TODO`](/TODO)
