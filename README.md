@@ -1,4 +1,4 @@
-# TC66C &ndash; MQTT Bridge
+# TC66C – MQTT Bridge
 
 Proof-of-concept for a
 [RDTech TC66C](https://www.aliexpress.com/item/32968303350.html) (USB-C load
@@ -31,7 +31,7 @@ The only tested/supported configuration is the following though:
 1. `npm install`
 2. Follow the [`node-ble`](https://github.com/chrvadala/node-ble) instructions
    to properly configure D-Bus.
-3. `./test.js <tc66c-ble-mac-address> <mqtt-broker>`
+3. `./index.js <tc66c-ble-mac-address> <mqtt-broker>`
 
 ### 2.1. Docker
 
