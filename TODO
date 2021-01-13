@@ -1,6 +1,3 @@
 # ToDo
 
-- [ ] Does it make sense to validate against a remote GPG-key, or should the key
-      be added to this repository? Also, does a signature validation failure
-      actually abort the build process?
 - [ ] Setup proper logging through `s6`
