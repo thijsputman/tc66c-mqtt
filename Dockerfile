@@ -12,12 +12,14 @@ RUN \
   rm /tmp/s6-overlay-aarch64-installer* && \
   apk del /tmp/.gpg
 
-COPY package*.json *.js /tc66c-mqtt/
+COPY package*.json *.js LICENSE /tc66c-mqtt/
 
 WORKDIR /tc66c-mqtt
 
 RUN apk add --no-cache --virtual .gyp python3 make g++ && \
     npm install && \
     apk del .gyp
+
+COPY docker/rootfs/ /
 
 ENTRYPOINT ["/init"]

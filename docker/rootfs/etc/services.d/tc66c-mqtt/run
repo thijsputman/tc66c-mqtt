@@ -1,0 +1,12 @@
+#!/usr/bin/with-contenv sh
+# shellcheck shell=sh
+
+export NODE_OPTIONS="--unhandled-rejections=strict"
+
+cmd="/tc66c-mqtt/test.js"
+
+if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
+  exec s6-setuidgid "$PUID:$PGID" "$cmd" "$TC66C_BLE_MAC" "$MQTT_BROKER"
+else
+  exec "$cmd" "$TC66C_BLE_MAC" "$MQTT_BROKER"
+fi
