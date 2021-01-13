@@ -1,4 +1,4 @@
-FROM node:12-alpine3.12
+FROM arm64v8/node:12-alpine3.12
 
 RUN \
   apk add --no-cache --virtual /tmp/.gpg gnupg && \
