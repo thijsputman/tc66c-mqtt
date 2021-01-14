@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
 jobs:
-  build:
+  lint:
     name: Lint codebase
     runs-on: ubuntu-latest
     steps:
