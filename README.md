@@ -42,29 +42,45 @@ Alternatively, you can use
 
 In this case, there's no need to `npm install` nor to configure D-Bus.
 
-You do need to load a custom AppArmor-policy prior to starting the container:
+The easiest way to get it up and running is via `docker-compose`:
+
+`📄 docker-compose.yml`
+
+```yaml
+version: "3.7"
+services:
+  tc66c-mqtt:
+    image: thijsputman/tc66c-mqtt:latest
+    security_opt:
+      - apparmor=docker-ble
+    volumes:
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+    environment:
+      - TC66C_BLE_MAC=
+      - MQTT_BROKER=
+      - PUID=
+      - PGID=
+```
+
+Fill out `TC66C_BLE_MAC` (TC66C's MAC address) and `MQTT_BROKER` (hostname or IP
+address). The `PUID` and `PGID` variables are optional. Specify them to have the
+script run under a user other than `root`.
+
+For this to work, you do need to load a custom AppArmor-policy prior to starting
+the container:
 
 ```shell
 sudo apparmor_parser -r -W ./docker/docker-ble
 ```
 
-And provide several environment variables:
-
-`📄 .env`
-
-```shell
-TC66C_BLE_MAC=
-MQTT_BROKER=
-PUID=
-PGID=
-```
-
-The `PUID` and `PGID` variables are optional. Specify them to have the script
-run under a user other than root.
+The AppArmor-policy needs to be reloaded after each system boot. There are many
+ways to automate this, one would be:
 
 ```shell
-docker run -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
-   --security-opt apparmor=docker-ble --env-file ./.env thijsputman/tc66c-mqtt:latest
+sudo mkdir -p /etc/apparmor.d/containers && sudo cp ./docker/docker-ble "$_"
+sudo crontab -e
+# Insert the following into the crontab:
+@reboot  /usr/sbin/apparmor_parser -r -W /etc/apparmor.d/containers/docker-ble
 ```
 
 See [`📄 docker/README.md`](./docker/README.md) for all the ins and outs with
