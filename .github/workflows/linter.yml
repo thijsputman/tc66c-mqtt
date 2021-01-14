@@ -1,0 +1,24 @@
+name: Lint codebase
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    name: Lint codebase
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Lint codebase
+        uses: github/super-linter@v3
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          JAVASCRIPT_ES_CONFIG_FILE: .eslintrc.json
+          JAVASCRIPT_DEFAULT_STYLE: prettier
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
