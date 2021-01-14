@@ -90,6 +90,10 @@ const receiveBuffer = (rxChr) => {
   });
 };
 
+const delay = (ms) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
 const sendMQTT = async (broker, messages) => {
   const mqttClient = await MQTT.connectAsync(`tcp://${broker}`);
 
@@ -114,15 +118,25 @@ process.on("SIGINT", () => {
   console.info("Is powered", await adapter.isPowered());
 
   // It appears discovery is needed to (reliably) connect...
+  // Works without most of the time, but not always. Also, see note further down
   if (!(await adapter.isDiscovering())) {
     await adapter.startDiscovery();
   }
 
   const device = await adapter.waitDevice(process.argv[2]);
-  await device.connect();
-  console.info("Connected to", await device.getName());
 
   try {
+    await device.connect();
+    console.info("Connected to", await device.getName());
+
+    /*
+     * XXX: This appears to be critical! If we don't stop discovery after
+     * connecting it stays active, causing major interference on the 2.4 GHz
+     * band (i.e. if the RPi is connected via 2.4 GHz WiFi, the SSH connection
+     * starts to lag like crazy).
+     */
+    await adapter.stopDiscovery();
+
     const { txChr, rxChr } = await getDeviceChrs(device);
 
     while (true) {
@@ -151,11 +165,18 @@ process.on("SIGINT", () => {
 
       sendMQTT(process.argv[3], messages);
 
-      // TODO: Add (configurable) sleep
-
       if (exitLoop) {
         break;
       }
+
+      /*
+       * TODO: Make configurable (and perhaps deterministic? i.e., include the
+       * time needed for the measurement in the timeout, so we get a measurement
+       * every x seconds, instead of every x seconds + however long it takes to
+       * take the measurement).
+       */
+
+      await delay(2000);
     }
   } catch (error) {
     console.error(error);
