@@ -18,6 +18,7 @@ jobs:
         uses: github/super-linter@v3
         env:
           VALIDATE_ALL_CODEBASE: false
+          LINTER_RULES_PATH: .
           JAVASCRIPT_ES_CONFIG_FILE: .eslintrc.json
           JAVASCRIPT_DEFAULT_STYLE: prettier
           DEFAULT_BRANCH: main
