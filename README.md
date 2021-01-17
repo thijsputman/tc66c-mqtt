@@ -1,3 +1,12 @@
+<p style="position:inline-block; width:100%; text-align:right">
+  <img
+    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Lint%20codebase/badge.svg"
+    title="Lint codebase"/>
+  <img
+    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Build%20and%20push%20to%20Docker%20Hub/badge.svg"
+    title="Build and push to Docker Hub"/>
+</p>
+
 # TC66C – MQTT Bridge
 
 Proof-of-concept for a
