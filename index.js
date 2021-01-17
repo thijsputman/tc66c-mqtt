@@ -13,15 +13,18 @@ const key = Buffer.from([
   0x86, 0xf4, 0x02, 0x60, 0x81, 0x6f, 0x9a, 0x0b,
   0xa7, 0xf1, 0x06, 0x61, 0x9a, 0xb8, 0x72, 0x88
 ]);
-const keyAlgo = "aes-256-ecb";
+const keyAlgorithm = "aes-256-ecb";
 
-const getDeviceChrs = (device) => {
+// TODO: Move all argv and env handling here...
+const delay = 2000;
+
+const getDeviceCharacteristics = (device) => {
   let resolved = false;
   return new Promise((resolve, reject) => {
     // 5 Second timeout on getting device characteristics
     setTimeout(() => {
       if (!resolved) {
-        reject(new Error("Timeout"));
+        reject(new Error("Timeout in getDeviceCharacteristics()"));
       }
     }, 5000);
 
@@ -62,47 +65,40 @@ const receiveBuffer = (rxChr) => {
     // 5 Second timeout on receiving data
     setTimeout(() => {
       if (!resolved) {
-        reject(new Error("Timeout"));
+        reject(new Error("Timeout in receiveBuffer()"));
       }
     }, 5000);
-    /**
-     * XXX: Not sure how nice of an approach this is...
-     *
-     * We need to remove the listener from our previous invocation(s) to prevent
-     * them from lingering around (receiving data, but not acting upon them as
-     * their containing promise already got resolved) and creating (what I
-     * assume will be) a significant memory leak.
-     * Could rewrite to lift the listener out of this function, but that would
-     * needlessly complicate the logic?
-     */
-    rxChr.removeAllListeners("valuechanged");
-    rxChr.on("valuechanged", (buffer) => {
+    const onValueChanged = (buffer) => {
       response.push(buffer);
       length += buffer.length;
-      console.debug("Buffer length", length);
-      if (length === 192) {
-        resolved = true;
-        resolve(response);
-      } else if (length > 192) {
-        reject(new Error(`Buffer length ${length} exceeded 192`));
+      console.debug("Received", length, "bytes");
+      if (length >= 192) {
+        /*
+         * The nature of the receiveBuffer implementation requires us to add a
+         * new listener at each invocation. Here we remove the current listener
+         * to prevent receiving duplicate data (and a massive memory-leak)...
+         */
+        rxChr.removeListener("valuechanged", onValueChanged);
+        if (length === 192) {
+          resolved = true;
+          resolve(response);
+        }
+        reject(new Error(`Buffer length ${length} exceeds 192`));
       }
-    });
+    };
+    rxChr.on("valuechanged", onValueChanged);
   });
 };
 
-const delay = (ms) => {
+const wait = (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const sendMQTT = async (broker, messages) => {
-  const mqttClient = await MQTT.connectAsync(`tcp://${broker}`);
-
+const sendMQTT = async (mqttClient, messages) => {
   for (const [topic, value] of messages) {
     console.info(topic, value);
     await mqttClient.publish(topic, value.toString());
   }
-
-  await mqttClient.end();
 };
 
 let data;
@@ -110,81 +106,122 @@ let exitLoop = false;
 let exitCode = 0;
 
 process.on("SIGINT", () => {
+  console.debug(" 📞 Interrupt received; attempting graceful exit");
   exitLoop = true;
 });
 
 (async () => {
-  const adapter = await bluetooth.defaultAdapter();
-  console.info("Is powered", await adapter.isPowered());
+  const mqttClient = await MQTT.connectAsync(`tcp://${process.argv[3]}`);
+  console.info("Connected to MQTT broker at %s", `tcp://${process.argv[3]}`);
 
-  // It appears discovery is needed to (reliably) connect...
-  // Works without most of the time, but not always. Also, see note further down
+  // Initialise MQTT Promise as no-op (i.e. resolve immediately)
+  let mqttPromise = new Promise((resolve) => {
+    resolve();
+  });
+
+  const adapter = await bluetooth.defaultAdapter();
+  console.info("Is Bluetooth powered?", await adapter.isPowered());
+
+  // It appears starting discovery is needed to (reliably) connect
   if (!(await adapter.isDiscovering())) {
     await adapter.startDiscovery();
   }
 
+  console.info("Connecting to %s, this may take a while...", process.argv[2]);
   const device = await adapter.waitDevice(process.argv[2]);
+  let deviceName = "<unknown>";
 
   try {
     await device.connect();
-    console.info("Connected to", await device.getName());
+    deviceName = await device.getName();
 
     /*
-     * XXX: This appears to be critical! If we don't stop discovery after
-     * connecting it stays active, causing major interference on the 2.4 GHz
-     * band (i.e. if the RPi is connected via 2.4 GHz WiFi, the SSH connection
-     * starts to lag like crazy).
+     * It (again, appears) critical to stop discovery once we've connected to
+     * the device. If we don't to do this, discovery remains active,causing
+     * major interference on the 2.4 GHz band (i.e. if the RPi is connected via
+     * 2.4 GHz WiFi, connectivity starts to lag like crazy).
      */
     await adapter.stopDiscovery();
 
-    const { txChr, rxChr } = await getDeviceChrs(device);
+    const { txChr, rxChr } = await getDeviceCharacteristics(device);
+
+    console.info(
+      "Connected to Bluetooth-device %s; characteristics received",
+      deviceName
+    );
 
     while (true) {
+      const start = process.hrtime.bigint();
+
       await rxChr.startNotifications();
       await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
+      console.debug("Send request for measurements to %s", deviceName);
 
       data = Buffer.concat(await receiveBuffer(rxChr));
-      console.info("Buffer", data);
+      console.info("Measurements received", data);
 
       await rxChr.stopNotifications();
 
-      const decipher = crypto.createDecipheriv(keyAlgo, key, "");
+      const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
-      const messages = [];
+      const messages = [
+        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
+        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
+        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
+      ];
 
-      const voltageV = decrypted.readInt32LE(48) * 1e-4;
-      messages.push(["tc66c/voltage_V", voltageV]);
-
-      const currentA = decrypted.readInt32LE(52) * 1e-5;
-      messages.push(["tc66c/current_A", currentA]);
-
-      const powerW = decrypted.readInt32LE(56) * 1e-4;
-      messages.push(["tc66c/power_W", powerW]);
-
-      // TODO: Abort existing promise if it's still running when we get here again?
-
-      sendMQTT(process.argv[3], messages);
+      /*
+       * Wait for existing Promise to resolve (i.e. only block if still sending
+       * the previous set of messages).
+       */
+      await mqttPromise;
+      mqttPromise = sendMQTT(mqttClient, messages);
+      /*
+       * We're not waiting for this to complete, so errors need to be handled
+       * explicitly on the Promise (otherwise they'll crash us out of our main
+       * loop the hard way).
+       */
+      mqttPromise.catch((error) => {
+        console.error(error);
+        exitCode = 1;
+        exitLoop = true;
+      });
 
       if (exitLoop) {
         break;
       }
 
-      /*
-       * TODO: Make configurable (and perhaps deterministic? i.e., include the
-       * time needed for the measurement in the timeout, so we get a measurement
-       * every x seconds, instead of every x seconds + however long it takes to
-       * take the measurement).
-       */
+      const duration = Number((process.hrtime.bigint() - start) / 1000000n);
+      console.debug("Run duration", duration, "ms");
 
-      await delay(2000);
+      const waitFor = delay - duration;
+      if (waitFor <= 0) {
+        console.debug("Run took too long, skipping wait");
+        continue;
+      }
+
+      console.debug("Adjusting wait time to", waitFor, "ms");
+      await wait(waitFor);
     }
   } catch (error) {
     console.error(error);
     exitCode = 1;
   }
 
+  console.info("Graceful exit with status code", exitCode);
+
+  // Block on outstanding MQTT messages before disconnecting the client
+  try {
+    await mqttPromise;
+  } catch (error) {
+    // Promise (most likely) already rejected; no need to wait any further...
+  }
+  await mqttClient.end();
+  console.debug("Disconnected from MQTT broker");
+
   await device.disconnect();
   destroy();
+  console.debug("Disconnected from Bluetooth-device %s", deviceName);
 
   process.exit(exitCode);
 })();
