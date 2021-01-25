@@ -1,3 +1,4 @@
+<!-- markdownlint-disable no-inline-html -->
 <p style="position:inline-block; width:100%; text-align:right">
   <img
     src="https://github.com/thijsputman/tc66c-mqtt/workflows/Lint%20codebase/badge.svg"
@@ -6,6 +7,7 @@
     src="https://github.com/thijsputman/tc66c-mqtt/workflows/Build%20and%20push%20to%20Docker%20Hub/badge.svg"
     title="Build and push to Docker Hub"/>
 </p>
+<!-- markdownlint-enable no-inline-html -->
 
 # TC66C – MQTT Bridge
 
@@ -107,6 +109,6 @@ mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 
 ## 3. References
 
-1. https://sigrok.org/wiki/RDTech_TC66C
-2. https://hub.docker.com/r/thijsputman/tc66c-mqtt
+1. <https://sigrok.org/wiki/RDTech_TC66C>
+2. <https://hub.docker.com/r/thijsputman/tc66c-mqtt>
 3. [`📄 TODO`](/TODO)
