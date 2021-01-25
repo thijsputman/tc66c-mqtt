@@ -13,6 +13,10 @@
   },
   "dependencies": {
     "async-mqtt": "^2.6.1",
+    "chalk": "^4.1.0",
+    "loglevel": "^1.7.1",
+    "loglevel-plugin-prefix": "^0.8.4",
+    "minimist": "^1.2.5",
     "node-ble": "^1.4.0"
   },
   "devDependencies": {

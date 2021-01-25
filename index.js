@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 "use strict";
 
+const parseArgs = require("minimist");
+const log = require("loglevel");
+const logPrefix = require("loglevel-plugin-prefix");
+const chalk = require("chalk");
 const { createBluetooth } = require("node-ble");
 const { bluetooth, destroy } = createBluetooth();
 const MQTT = require("async-mqtt");
@@ -15,8 +19,51 @@ const key = Buffer.from([
 ]);
 const keyAlgorithm = "aes-256-ecb";
 
-// TODO: Move all argv and env handling here...
-const delay = 2000;
+const logColours = {
+  DEBUG: chalk.cyan,
+  INFO: chalk.blue,
+  WARN: chalk.magenta,
+  ERROR: chalk.red,
+};
+
+logPrefix.reg(log);
+logPrefix.apply(log, {
+  format(level, name, timestamp) {
+    return `${chalk.gray(`[${timestamp}]`)} ${logColours[level](level)}:`;
+  },
+  levelFormatter(level) {
+    return level.toUpperCase();
+  },
+  timestampFormatter(date) {
+    return date.toISOString();
+  },
+});
+
+const config = {
+  bleAddress: "",
+  mqttBroker: "",
+  interval: 2000,
+  logLevel: "info",
+};
+const argv = parseArgs(process.argv.slice(2));
+
+// Allow for positional --bleAddress and --mqttBroker
+config.bleAddress = argv.bleAddress || argv._[0];
+config.mqttBroker = argv.mqttBroker || argv._[1];
+
+if (typeof argv.interval !== "undefined") {
+  config.interval = Number(argv.interval);
+}
+if (["debug", "info", "warn", "error"].indexOf(argv.logLevel) > -1) {
+  config.logLevel = argv.logLevel;
+}
+
+log.setLevel(config.logLevel);
+
+if (!config.bleAddress || !config.mqttBroker) {
+  log.error("Incomplete configuration", config);
+  process.exit(65);
+}
 
 const getDeviceCharacteristics = (device) => {
   let resolved = false;
@@ -34,7 +81,6 @@ const getDeviceCharacteristics = (device) => {
     (async () => {
       try {
         const gattServer = await device.gatt();
-
         const tx = await gattServer.getPrimaryService(
           "0000ffe5-0000-1000-8000-00805f9b34fb"
         );
@@ -50,7 +96,6 @@ const getDeviceCharacteristics = (device) => {
       } catch (error) {
         reject(error);
       }
-
       resolved = true;
       resolve({ txChr: txChr, rxChr: rxChr });
     })();
@@ -71,7 +116,7 @@ const receiveBuffer = (rxChr) => {
     const onValueChanged = (buffer) => {
       response.push(buffer);
       length += buffer.length;
-      console.debug("Received", length, "bytes");
+      log.debug("Received", length, "bytes");
       if (length >= 192) {
         /*
          * The nature of the receiveBuffer implementation requires us to add a
@@ -96,7 +141,7 @@ const wait = (ms) => {
 
 const sendMQTT = async (mqttClient, messages) => {
   for (const [topic, value] of messages) {
-    console.info(topic, value);
+    log.info(topic, value);
     await mqttClient.publish(topic, value.toString());
   }
 };
@@ -105,14 +150,27 @@ let data;
 let exitLoop = false;
 let exitCode = 0;
 
-process.on("SIGINT", () => {
-  console.debug(" 📞 Interrupt received; attempting graceful exit");
-  exitLoop = true;
+/*
+ * Promise that resolves on SIGINT – serves two purposes: Firstly, it enables
+ * "exitLoop", thus ending the main loop. Secondly, it is raced against the
+ * "wait" Promise to ensure we terminate directly upon receiving SIGINT and not
+ * only after "wait" resolves (which can take a while).
+ * Note the _intentional_ use of "once" (instead of "on"). We only capture
+ * SIGINT once; allowing further events to be captured by the runtime (which
+ * will "ungracefully" end execution). This way, pressing Ctrl+C multiple times
+ * will immediately terminate execution.
+ */
+const resolveOnSIGINT = new Promise((resolve) => {
+  process.once("SIGINT", () => {
+    log.warn("Interrupt received; attempting to start graceful exit");
+    exitLoop = true;
+    resolve();
+  });
 });
 
 (async () => {
-  const mqttClient = await MQTT.connectAsync(`tcp://${process.argv[3]}`);
-  console.info("Connected to MQTT broker at %s", `tcp://${process.argv[3]}`);
+  const mqttClient = await MQTT.connectAsync(`tcp://${config.mqttBroker}`);
+  log.info("Connected to MQTT broker at %s", `tcp://${config.mqttBroker}`);
 
   // Initialise MQTT Promise as no-op (i.e. resolve immediately)
   let mqttPromise = new Promise((resolve) => {
@@ -120,15 +178,15 @@ process.on("SIGINT", () => {
   });
 
   const adapter = await bluetooth.defaultAdapter();
-  console.info("Is Bluetooth powered?", await adapter.isPowered());
+  log.debug("Is Bluetooth powered?", await adapter.isPowered());
 
   // It appears starting discovery is needed to (reliably) connect
   if (!(await adapter.isDiscovering())) {
     await adapter.startDiscovery();
   }
 
-  console.info("Connecting to %s, this may take a while...", process.argv[2]);
-  const device = await adapter.waitDevice(process.argv[2]);
+  log.info("Connecting to %s, this may take a while...", config.bleAddress);
+  const device = await adapter.waitDevice(config.bleAddress);
   let deviceName = "<unknown>";
 
   try {
@@ -145,7 +203,7 @@ process.on("SIGINT", () => {
 
     const { txChr, rxChr } = await getDeviceCharacteristics(device);
 
-    console.info(
+    log.info(
       "Connected to Bluetooth-device %s; characteristics received",
       deviceName
     );
@@ -153,12 +211,16 @@ process.on("SIGINT", () => {
     while (true) {
       const start = process.hrtime.bigint();
 
+      if (exitLoop) {
+        break;
+      }
+
       await rxChr.startNotifications();
       await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
-      console.debug("Send request for measurements to %s", deviceName);
+      log.debug("Send request for measurements to %s", deviceName);
 
       data = Buffer.concat(await receiveBuffer(rxChr));
-      console.info("Measurements received", data);
+      log.debug("Measurements received", data);
 
       await rxChr.stopNotifications();
 
@@ -182,33 +244,31 @@ process.on("SIGINT", () => {
        * loop the hard way).
        */
       mqttPromise.catch((error) => {
-        console.error(error);
+        log.error(error);
         exitCode = 1;
         exitLoop = true;
       });
 
-      if (exitLoop) {
-        break;
-      }
-
       const duration = Number((process.hrtime.bigint() - start) / 1000000n);
-      console.debug("Run duration", duration, "ms");
+      log.info("Run duration", duration, "ms");
 
-      const waitFor = delay - duration;
+      if (config.interval === 0) continue;
+
+      const waitFor = config.interval - duration;
       if (waitFor <= 0) {
-        console.debug("Run took too long, skipping wait");
+        log.warn("Run took", Math.abs(waitFor), "ms too long, skipping wait");
         continue;
       }
 
-      console.debug("Adjusting wait time to", waitFor, "ms");
-      await wait(waitFor);
+      log.debug("Adjusting wait time to", waitFor, "ms");
+      await Promise.race([wait(waitFor), resolveOnSIGINT]);
     }
   } catch (error) {
-    console.error(error);
+    log.error(error);
     exitCode = 1;
   }
 
-  console.info("Graceful exit with status code", exitCode);
+  log.info("Starting graceful exit with status code", exitCode);
 
   // Block on outstanding MQTT messages before disconnecting the client
   try {
@@ -217,11 +277,11 @@ process.on("SIGINT", () => {
     // Promise (most likely) already rejected; no need to wait any further...
   }
   await mqttClient.end();
-  console.debug("Disconnected from MQTT broker");
+  log.info("Disconnected from MQTT broker");
 
   await device.disconnect();
   destroy();
-  console.debug("Disconnected from Bluetooth-device %s", deviceName);
+  log.info("Disconnected from Bluetooth-device %s", deviceName);
 
   process.exit(exitCode);
 })();
