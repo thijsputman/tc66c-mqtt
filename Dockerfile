@@ -1,17 +1,17 @@
 FROM arm64v8/node:12-alpine3.12 AS npm-ci
 
+SHELL ["/bin/ash", "-euo", "pipefail", "-c"]
+
 WORKDIR /tc66c-mqtt
 
 COPY package*.json *.js LICENSE ./
 
-RUN set -euxo pipefail && \
-  apk add --no-cache python3~=3.8 make~=4.3 g++~=9.3 && \
+RUN apk add --no-cache python3~=3.8 make~=4.3 g++~=9.3 && \
   npm ci --production
 
 FROM arm64v8/node:12-alpine3.12
 
-RUN set -euxo pipefail && \
-  apk add --no-cache --virtual /tmp/.gpg gnupg~=2.2 && \
+RUN apk add --no-cache --virtual /tmp/.gpg gnupg~=2.2 && \
   # Download just-containers s6-overlay installer and its signature
   wget -O /tmp/s6-installer \
     https://github.com/just-containers/s6-overlay/releases/download/v2.1.0.2/s6-overlay-aarch64-installer && \
@@ -32,5 +32,8 @@ COPY docker/rootfs/ /
 WORKDIR /tc66c-mqtt
 
 COPY --from=npm-ci /tc66c-mqtt .
+
+# Restore SHELL to its default
+SHELL ["/bin/sh", "-c"]
 
 ENTRYPOINT ["/init"]
