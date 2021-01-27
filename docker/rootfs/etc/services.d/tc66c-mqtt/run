@@ -1,25 +1,24 @@
-#!/usr/bin/with-contenv sh
-# shellcheck shell=sh
-# shellcheck disable=SC2086
+#!/usr/bin/with-contenv ash
+# shellcheck shell=ash
 
-# Disable globbing (to safely ignore SC2086)
-set -f
+set -euo pipefail
 
 export NODE_OPTIONS="--unhandled-rejections=strict"
 
 cmd="/tc66c-mqtt/index.js"
 
-if [ -n "$M_INTERVAL" ] ; then
-  interval="--interval $M_INTERVAL"
-fi
+interval=""
+if [ -n "$M_INTERVAL" ] ; then interval="yes" ; fi
 
-if [ -n "$LOG_LEVEL" ] ; then
-  loglevel="--logLevel $LOG_LEVEL"
-fi
+loglevel=""
+if [ -n "$LOG_LEVEL" ] ; then loglevel="yes" ; fi
 
 if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
   exec s6-setuidgid "$PUID:$PGID" "$cmd" "$TC66C_BLE_MAC" "$MQTT_BROKER" \
-    $interval $loglevel
+    ${interval:+ --interval "$M_INTERVAL"} \
+    ${loglevel:+ --logLevel "$LOG_LEVEL"}
 else
-  exec "$cmd" "$TC66C_BLE_MAC" "$MQTT_BROKER" $interval $loglevel
+  exec "$cmd" "$TC66C_BLE_MAC" "$MQTT_BROKER" \
+    ${interval:+ --interval "$M_INTERVAL"} \
+    ${loglevel:+ --logLevel "$LOG_LEVEL"}
 fi

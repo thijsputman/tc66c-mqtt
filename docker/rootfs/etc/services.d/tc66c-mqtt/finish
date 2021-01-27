@@ -1,4 +1,6 @@
-#!/bin/sh
-# shellcheck shell=sh
+#!/bin/ash
+# shellcheck shell=ash
+
+set -euo pipefail
 
 s6-svscanctl -t /var/run/s6/services 2> /dev/null
