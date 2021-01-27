@@ -1,3 +1,4 @@
 #!/bin/sh
+# shellcheck shell=sh
 
 s6-svscanctl -t /var/run/s6/services 2> /dev/null
