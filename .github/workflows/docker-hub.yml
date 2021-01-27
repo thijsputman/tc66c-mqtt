@@ -33,7 +33,7 @@ jobs:
     name: Push to Docker Hub
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == "push" && github.ref == "refs/heads/main"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
     steps:
       - name: Login to Docker Hub
