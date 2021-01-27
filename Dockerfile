@@ -11,6 +11,8 @@ RUN apk add --no-cache python3~=3.8 make~=4.3 g++~=9.3 && \
 
 FROM arm64v8/node:12-alpine3.12
 
+SHELL ["/bin/ash", "-euo", "pipefail", "-c"]
+
 RUN apk add --no-cache --virtual /tmp/.gpg gnupg~=2.2 && \
   # Download just-containers s6-overlay installer and its signature
   wget -O /tmp/s6-installer \
