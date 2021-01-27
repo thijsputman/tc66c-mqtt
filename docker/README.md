@@ -1,11 +1,11 @@
 # Docker
 
-- [1. Building the Container](#1-building-the-container)
-- [2. Docker and Bluetooth](#2-docker-and-bluetooth)
-  - [2.1. Running `bluetoothd` _inside_ the Container](#21-running-bluetoothd-inside-the-container)
-  - [2.2. Using D-Bus](#22-using-d-bus)
+- [Building the Container](#building-the-container)
+- [Docker and Bluetooth](#docker-and-bluetooth)
+  - [Running `bluetoothd` _inside_ the Container](#running-bluetoothd-inside-the-container)
+  - [Using D-Bus](#using-d-bus)
 
-## 1. Building the Container
+## Building the Container
 
 To locally build the container:
 
@@ -13,7 +13,7 @@ To locally build the container:
 docker build -t tc66c-mqtt .
 ```
 
-## 2. Docker and Bluetooth
+## Docker and Bluetooth
 
 Using Bluetooth from inside a Docker container is not totally straightforward...
 
@@ -42,7 +42,7 @@ the final container used by the repository is based on Alpine. This might cause
 some issues with the contents of `📁 node_modules` not being portable between
 the two distros...
 
-### 2.1. Running `bluetoothd` _inside_ the Container
+### Running `bluetoothd` _inside_ the Container
 
 Again: Not the preferred solution, the information is just here for future
 reference.
@@ -77,9 +77,10 @@ be **root**).
 
 Execute the commands as you would normally do.
 
-### 2.2. Using D-Bus
+### Using D-Bus
 
-Courtesy of: https://github.com/edgexfoundry-holding/device-bluetooth-c/pull/15.
+Courtesy of:
+<https://github.com/edgexfoundry-holding/device-bluetooth-c/pull/15>.
 
 I've compared the above AppArmor policy against the current
 [Docker base AppArmor policy](https://docs.docker.com/engine/security/apparmor/)
@@ -91,7 +92,7 @@ the active policy).
 Further modified the policy to include the additional D-Bus interfaces required
 by [`node-ble`](https://github.com/chrvadala/node-bl) (based on the contents of
 `📄 node-ble.conf`). I still intend to go through
-https://gitlab.com/apparmor/apparmor/-/wikis/AppArmorDBus and further
+<https://gitlab.com/apparmor/apparmor/-/wikis/AppArmorDBus> and further
 refine/confine the policy as I think it affords too much access at the moment...
 
 Still, for now it works:

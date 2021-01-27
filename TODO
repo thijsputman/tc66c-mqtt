@@ -1,6 +1,9 @@
+<!-- vim: syntax=Markdown -->
+
 # ToDo
 
-- [ ] Setup proper logging through `s6`
-- [ ] Consider using a separate builder container to further reduce the size of
-      the final image? It appears (based on the size of the resulting compressed
-      layers) `apk add --virtual` leaves some residuals around...
+- Consider using a separate builder container to further reduce the size of the
+  final image? It appears (based on the size of the resulting compressed layers)
+  `apk add --virtual` leaves some residuals around...
+- Refine the custom AppArmor-policy (see
+  [`📄 docker/README.md`](./docker/README.md#using-d-bus))
