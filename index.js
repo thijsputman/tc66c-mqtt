@@ -19,6 +19,8 @@ const key = Buffer.from([
 ]);
 const keyAlgorithm = "aes-256-ecb";
 
+class RuntimeError extends Error {}
+
 const logColours = {
   DEBUG: chalk.cyan,
   INFO: chalk.blue,
@@ -62,16 +64,25 @@ log.setLevel(config.logLevel);
 
 if (!config.bleAddress || !config.mqttBroker) {
   log.error("Incomplete configuration", config);
-  process.exit(65);
+  process.exit(1);
 }
 
+/**
+ * Get transmit and receive characteristic for the TC66C-device.
+ *
+ * @param {import("node-ble").Device} device
+ * @return {Promise<Object>}
+ * @return {import("node-ble").GattCharacteristic} Transmit characteristic
+ * @return {import("node-ble").GattCharacteristic} Receive characteristic
+ * @throws {RuntimeException} If no characteristics retrieved after 5 seconds.
+ */
 const getDeviceCharacteristics = (device) => {
   let resolved = false;
   return new Promise((resolve, reject) => {
     // 5 Second timeout on getting device characteristics
     setTimeout(() => {
       if (!resolved) {
-        reject(new Error("Timeout in getDeviceCharacteristics()"));
+        reject(new RuntimeError("Timeout in getDeviceCharacteristics()"));
       }
     }, 5000);
 
@@ -102,6 +113,17 @@ const getDeviceCharacteristics = (device) => {
   });
 };
 
+/**
+ * Receive data (i.e. measurements) from the TC66C-device.
+ *
+ * Data is send in several "bursts", amounting to a total of 192 bytes of data.
+ * A single Buffer (with a length of 192 bytes) is returned.
+ *
+ * @param {import("node-ble").GattCharacteristic} rxChr Receive characteristic
+ * @return {Promise<Buffer>}
+ * @throws {RuntimeException} If not a full buffer received after 5 seconds.
+ * @throws {RuntimeException} If total buffer length exceeds 192 bytes.
+ */
 const receiveBuffer = (rxChr) => {
   const response = [];
   let length = 0;
@@ -110,7 +132,7 @@ const receiveBuffer = (rxChr) => {
     // 5 Second timeout on receiving data
     setTimeout(() => {
       if (!resolved) {
-        reject(new Error("Timeout in receiveBuffer()"));
+        reject(new RuntimeError("Timeout in receiveBuffer()"));
       }
     }, 5000);
     const onValueChanged = (buffer) => {
@@ -126,9 +148,9 @@ const receiveBuffer = (rxChr) => {
         rxChr.removeListener("valuechanged", onValueChanged);
         if (length === 192) {
           resolved = true;
-          resolve(response);
+          resolve(Buffer.concat(response));
         }
-        reject(new Error(`Buffer length ${length} exceeds 192`));
+        reject(new RuntimeError(`Buffer length ${length} exceeds 192`));
       }
     };
     rxChr.on("valuechanged", onValueChanged);
@@ -151,21 +173,26 @@ let exitLoop = false;
 let exitCode = 0;
 
 /*
- * Promise that resolves on SIGINT – serves two purposes: Firstly, it enables
- * "exitLoop", thus ending the main loop. Secondly, it is raced against the
- * "wait" Promise to ensure we terminate directly upon receiving SIGINT and not
- * only after "wait" resolves (which can take a while).
+ * Promise that resolves on SIGTERM – it enables "exitLoop", thus ending the
+ * main loop. In several places, other Promises are raced against this one to
+ * ensure we terminate immediately upon receiving SIGTERM and not await
+ * (i.e. block) on the long running operation in the other Promise(s).
  * Note the _intentional_ use of "once" (instead of "on"). We only capture
- * SIGINT once; allowing further events to be captured by the runtime (which
- * will "ungracefully" end execution). This way, pressing Ctrl+C multiple times
- * will immediately terminate execution.
+ * SIGTERM once; allowing further events to be captured by the runtime (which
+ * will "ungracefully" terminate execution). This way, if we mess up the our
+ * exit routine, repeating the signal causes the runtime to take over.
  */
-const resolveOnSIGINT = new Promise((resolve) => {
-  process.once("SIGINT", () => {
+const resolveOnSIGTERM = new Promise((resolve) => {
+  process.once("SIGTERM", () => {
     log.warn("Interrupt received; attempting to start graceful exit");
     exitLoop = true;
     resolve();
   });
+});
+
+// Turn SIGINT (Ctrl+C) into SIGTERM
+process.once("SIGINT", () => {
+  process.emit("SIGTERM");
 });
 
 (async () => {
@@ -186,11 +213,20 @@ const resolveOnSIGINT = new Promise((resolve) => {
   }
 
   log.info("Connecting to %s, this may take a while...", config.bleAddress);
-  const device = await adapter.waitDevice(config.bleAddress);
+  const device = await Promise.race([
+    adapter.waitDevice(config.bleAddress),
+    resolveOnSIGTERM,
+  ]);
   let deviceName = "<unknown>";
 
   try {
-    await device.connect();
+    if (typeof device === "undefined") {
+      throw new RuntimeError(
+        `Device ${config.bleAddress} not available, aborting`
+      );
+    }
+
+    await Promise.race([device.connect(), resolveOnSIGTERM]);
     deviceName = await device.getName();
 
     /*
@@ -219,7 +255,7 @@ const resolveOnSIGINT = new Promise((resolve) => {
       await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
       log.debug("Send request for measurements to %s", deviceName);
 
-      data = Buffer.concat(await receiveBuffer(rxChr));
+      data = await receiveBuffer(rxChr);
       log.debug("Measurements received", data);
 
       await rxChr.stopNotifications();
@@ -261,10 +297,15 @@ const resolveOnSIGINT = new Promise((resolve) => {
       }
 
       log.debug("Adjusting wait time to", waitFor, "ms");
-      await Promise.race([wait(waitFor), resolveOnSIGINT]);
+      await Promise.race([wait(waitFor), resolveOnSIGTERM]);
     }
   } catch (error) {
-    log.error(error);
+    let message = error;
+    if (error instanceof RuntimeError) {
+      // For RuntimeError we don't care about the stack-trace
+      message = error.message;
+    }
+    log.error(message);
     exitCode = 1;
   }
 
@@ -279,9 +320,13 @@ const resolveOnSIGINT = new Promise((resolve) => {
   await mqttClient.end();
   log.info("Disconnected from MQTT broker");
 
-  await device.disconnect();
-  destroy();
-  log.info("Disconnected from Bluetooth-device %s", deviceName);
+  try {
+    await device.disconnect();
+    destroy();
+    log.info("Disconnected from Bluetooth-device %s", deviceName);
+  } catch (error) {
+    // Device (most likely) not connected (anymore); no need to bother...
+  }
 
   process.exit(exitCode);
 })();

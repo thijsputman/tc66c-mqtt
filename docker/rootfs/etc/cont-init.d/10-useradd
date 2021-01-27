@@ -6,8 +6,4 @@ if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
   addgroup -S "$PGID"
   adduser -S "$PUID" -G "$PGID"
 
-  exit 0
-
 fi
-
-exit 64
