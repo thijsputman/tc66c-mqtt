@@ -22,7 +22,7 @@ COPY package*.json *.js LICENSE /tc66c-mqtt/
 WORKDIR /tc66c-mqtt
 
 RUN apk add --no-cache --virtual .gyp python3 make g++ && \
-    npm install && \
+    npm ci --production && \
     apk del .gyp
 
 COPY docker/rootfs/ /
