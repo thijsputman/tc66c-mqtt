@@ -1,4 +1,4 @@
-name: Build image and push to Docker Hub
+name: Build and push to Docker Hub
 
 on: [push]
 
@@ -51,6 +51,6 @@ jobs:
           docker load --input /tmp/buildx.tar
           docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             thijsputman/tc66c-mqtt:latest
-    # - name: Push to Docker Hub
-    #   run: |
-    #     docker push --all-tags thijsputman/tc66c-mqtt:latest
+      - name: Push to Docker Hub
+        run: |
+          docker push --all-tags thijsputman/tc66c-mqtt:latest
