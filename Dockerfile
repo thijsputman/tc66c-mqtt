@@ -1,3 +1,12 @@
+FROM arm64v8/node:12-alpine3.12 AS npm-ci
+
+WORKDIR /tc66c-mqtt
+
+COPY package*.json *.js LICENSE ./
+
+RUN apk add python3 make g++ && \
+    npm ci --production
+
 FROM arm64v8/node:12-alpine3.12
 
 RUN \
@@ -17,14 +26,10 @@ RUN \
   rm /tmp/s6-installer* && \
   apk del /tmp/.gpg
 
-COPY package*.json *.js LICENSE /tc66c-mqtt/
+COPY docker/rootfs/ /
 
 WORKDIR /tc66c-mqtt
 
-RUN apk add --no-cache --virtual .gyp python3 make g++ && \
-    npm ci --production && \
-    apk del .gyp
-
-COPY docker/rootfs/ /
+COPY --from=npm-ci /tc66c-mqtt .
 
 ENTRYPOINT ["/init"]
