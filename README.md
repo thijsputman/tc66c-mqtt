@@ -1,11 +1,11 @@
 <!-- markdownlint-disable no-inline-html -->
 <p>
   <img
-    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Lint%20codebase/badge.svg"
+    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Lint%20codebase/badge.svg?branch=main"
     title="Lint codebase" align="right"/>
   <img
-    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Build%20and%20push%20to%20Docker%20Hub/badge.svg"
-    title="Build and push to Docker Hub" align="right"/>
+    src="https://github.com/thijsputman/tc66c-mqtt/workflows/Docker/badge.svg?branch=main"
+    title="Docker" align="right"/>
 </p>
 <!-- markdownlint-enable no-inline-html -->
 
