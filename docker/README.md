@@ -79,7 +79,8 @@ Execute the commands as you would normally do.
 
 ### Using D-Bus
 
-Courtesy of: https://github.com/edgexfoundry-holding/device-bluetooth-c/pull/15.
+Courtesy of:
+<https://github.com/edgexfoundry-holding/device-bluetooth-c/pull/15>.
 
 I've compared the above AppArmor policy against the current
 [Docker base AppArmor policy](https://docs.docker.com/engine/security/apparmor/)
@@ -91,7 +92,7 @@ the active policy).
 Further modified the policy to include the additional D-Bus interfaces required
 by [`node-ble`](https://github.com/chrvadala/node-bl) (based on the contents of
 `📄 node-ble.conf`). I still intend to go through
-https://gitlab.com/apparmor/apparmor/-/wikis/AppArmorDBus and further
+<https://gitlab.com/apparmor/apparmor/-/wikis/AppArmorDBus> and further
 refine/confine the policy as I think it affords too much access at the moment...
 
 Still, for now it works:
