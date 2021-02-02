@@ -5,7 +5,12 @@ set -euo pipefail
 
 if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
 
-  addgroup -S "$PGID"
-  adduser -S "$PUID" -G "$PGID"
+  if ! getent group "$PGID" > /dev/null 2>&1 ; then
+    addgroup -S "$PGID"
+  fi
+
+  if ! id "$PUID" > /dev/null 2>&1 ; then
+    adduser -S "$PUID" -G "$PGID"
+  fi
 
 fi
