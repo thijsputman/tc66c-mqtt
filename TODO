@@ -2,8 +2,11 @@
 
 # ToDo
 
-- Consider using a separate builder container to further reduce the size of the
-  final image? It appears (based on the size of the resulting compressed layers)
-  `apk add --virtual` leaves some residuals around...
 - Refine the custom AppArmor-policy (see
   [`📄 docker/README.md`](./docker/README.md#using-d-bus))
+- Add a device identifier to the `tc66c/` MQTT topic; this allows measurements
+  for multiple devices to be handled
+- Properly manage failures; right now we gracefully shutdown the container
+  (regardless of the script's exit code)
+  - Build some retry logic into the s6-overlay scripts? Or find a way to
+    "escalate" the problem out of the container?
