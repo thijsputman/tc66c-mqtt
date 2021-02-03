@@ -207,7 +207,7 @@ process.once("SIGINT", () => {
   const adapter = await bluetooth.defaultAdapter();
   log.debug("Is Bluetooth powered?", await adapter.isPowered());
 
-  // It appears starting discovery is needed to (reliably) connect
+  // Discovery is required to reliably connect
   if (!(await adapter.isDiscovering())) {
     await adapter.startDiscovery();
   }
@@ -230,12 +230,14 @@ process.once("SIGINT", () => {
     deviceName = await device.getName();
 
     /*
-     * It (again, appears) critical to stop discovery once we've connected to
-     * the device. If we don't to do this, discovery remains active,causing
-     * major interference on the 2.4 GHz band (i.e. if the RPi is connected via
-     * 2.4 GHz WiFi, connectivity starts to lag like crazy).
+     * Stop discovery once we've connected to the device. If we don't to do
+     * this, discovery remains active, causing major interference on the 2.4 GHz
+     * band (i.e. if the RPi is connected via 2.4 GHz WiFi, connectivity starts
+     * to lag like crazy).
      */
-    await adapter.stopDiscovery();
+    if (await adapter.isDiscovering()) {
+      await adapter.stopDiscovery();
+    }
 
     const { txChr, rxChr } = await getDeviceCharacteristics(device);
 
@@ -252,6 +254,8 @@ process.once("SIGINT", () => {
       }
 
       await rxChr.startNotifications();
+      log.debug("Started listening for notifications from %s", deviceName);
+
       await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
       log.debug("Send request for measurements to %s", deviceName);
 
@@ -321,6 +325,9 @@ process.once("SIGINT", () => {
   log.info("Disconnected from MQTT broker");
 
   try {
+    if (await adapter.isDiscovering()) {
+      await adapter.stopDiscovery();
+    }
     await device.disconnect();
     destroy();
     log.info("Disconnected from Bluetooth-device %s", deviceName);
