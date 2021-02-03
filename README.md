@@ -22,17 +22,33 @@ It publishes measurements of voltage, current and power to the `tc66c/` topic at
 a configurable interval.
 
 - [Prerequisites](#prerequisites)
+  - [TC66C](#tc66c)
+  - [Hardware & OS](#hardware--os)
 - [Usage](#usage)
   - [Docker](#docker)
+  - [Long running service](#long-running-service)
 - [Subscribe to the MQTT Topic](#subscribe-to-the-mqtt-topic)
 - [References](#references)
 
 ## Prerequisites
 
+### TC66C
+
 The TC66C is a USB-C load meter that communicates its measurements over
 Bluetooth Low Energy –
-[you'll need one of them](https://www.aliexpress.com/item/32968303350.html) to
-be able to retrieve any actual measurements...
+[you'll need one of these](https://www.aliexpress.com/item/32968303350.html) to
+be able to retrieve actual measurements...
+
+![TC66C diagram](./docs/TC66C_buttons.jpg)
+
+After prolonged periods of use (and/or after repeatedly
+connecting/disconnecting), the TC66C may stop accepting Bluetooth connections.
+The easiest way to recover from this, is to toggle the dip-switch marked **C**
+in the above picture back and forth. This switches the TC66C from drawing power
+over USB-C to its (unpowered) micro USB port, effectively resetting the unit
+(_without_ cutting power to the device connected to the TC66C's USB-C port).
+
+### Hardware & OS
 
 The code most likely works on any Linux-system with BlueZ properly configured.
 The only tested/supported configuration is the following though:
@@ -49,12 +65,20 @@ The only tested/supported configuration is the following though:
    to properly configure D-Bus
 3. `./index.js ble-address mqtt-broker [--interval ms] [--logLevel level]`
 
-The default `--interval` at which measurements are fetched and returned is 2,000
+The default `interval` at which measurements are fetched and returned is 2,000
 ms. Use `--interval 0` to disable the interval and fetch measurements as fast as
 possible (on my RPi4 this maxes out at around 800 ms).
 
-The default `--logLevel` is `info`. You can optionally change it into `debug` to
+The default `logLevel` is `info`. You can optionally change it into `debug` to
 get (a lot) more output, or to `warn` or `error` to get virtually no feedback.
+
+To terminate the script, send a `SIGTERM` or `SIGINT` (`Ctrl`+`C`). The script
+will attempt a graceful exit with status code `0`. If that fails, sending either
+`SIGTERM` or `SIGINT` again will instruct Node.js to forcefully terminate the
+script.
+
+If something goes (unexpectedly) wrong during execution, the script will attempt
+a graceful exit with status code `1` instead.
 
 ### Docker
 
@@ -116,8 +140,28 @@ services:
 - `PUID` & `PGID` – Optional; run under the specified UID and GID (instead of as
   `root`)
 
+#### Docker and Bluetooth
+
 See [`📄 docker/README.md`](./docker/README.md#docker-and-bluetooth) for all the
 ins and outs with regards to using Bluetooth in a Docker container.
+
+### Long running service
+
+Personally I'm using the TC66C to provide some insight into the power
+consumption of my Raspberry Pi 4 "home server". The script is running inside a
+Docker container alongside the Home Assistant and mosquitto containers.
+
+I've increased `M_INTERVAL` interval to `60` (as I'm graphing power consumption
+over a 24-hour period) and set `LOG_LEVEL` to `warn` to reduce the amount of
+chatter in the output of `docker-compose logs`.
+
+A failure of the script terminates the container. To ensure the script keeps
+running (i.e. the container is automatically restarted) add the following to
+`📄 docker-compose.yml`:
+
+```yaml
+restart: unless-stopped
+```
 
 ## Subscribe to the MQTT Topic
 
@@ -132,6 +176,6 @@ mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 ## References
 
 1. <https://sigrok.org/wiki/RDTech_TC66C>
-2. <https://hub.docker.com/r/thijsputman/tc66c-mqtt>
-3. [`📄 TODO`](./TODO)
-4. [`📄 docker/README.md`](./docker/README.md)
+2. <https://ralimtek.com/reverse%20engineering/software/tc66c-reverse-engineering/>
+3. <https://github.com/chrvadala/node-ble>
+4. [`📄 TODO`](./TODO)

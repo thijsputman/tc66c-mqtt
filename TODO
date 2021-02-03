@@ -4,7 +4,6 @@
 
 - Refine the custom AppArmor-policy (see
   [`📄 docker/README.md`](./docker/README.md#using-d-bus))
-- Don't add user/group in `📄 10-useradd` if they already exist
 - Add a device identifier to the `tc66c/` MQTT topic; this allows measurements
   for multiple devices to be handled
 - Properly manage failures; right now we gracefully shutdown the container
