@@ -17,3 +17,6 @@ more sensibly) it expects a `command`-write ("write without response" – see
 Issuing a `reliable`-write causes a `ERROR: DBusError: Write not permitted` to
 be raised. To be able to issue a `command`-write, at least
 [`node-ble` 1.5.0](https://github.com/chrvadala/node-ble/pull/20) is required.
+
+Apart from the above two changes, all other aspects (including the AES
+decryption-key) remain unchanged.

@@ -72,29 +72,46 @@ if (!config.bleAddress || !config.mqttBroker) {
  *
  * @param {import("node-ble").Device} device
  * @return {DeviceCharacteristics}
- * @throws {RuntimeException} If no characteristics retrieved after 5 seconds.
  */
 const getDeviceCharacteristics = async (device) => {
-  const gattServer = await device.gatt();
+  let txChr;
+  let rxChr;
 
-  // await device.services();
+  const gatt = await device.gatt();
+  const services = await gatt.services();
 
-  const gattPrimary = await gattServer.getPrimaryService(
+  const primary = await gatt.getPrimaryService(
     "0000ffe0-0000-1000-8000-00805f9b34fb"
   );
-  const txChr = await gattPrimary.getCharacteristic(
-    "0000ffe2-0000-1000-8000-00805f9b34fb"
-  );
-  const rxChr = await gattPrimary.getCharacteristic(
-    "0000ffe1-0000-1000-8000-00805f9b34fb"
-  );
+
+  // Firmware <= 1.14
+  if (services.includes("0000ffe5-0000-1000-8000-00805f9b34fb")) {
+    rxChr = await primary.getCharacteristic(
+      "0000ffe4-0000-1000-8000-00805f9b34fb"
+    );
+    const txPrimary = await gatt.getPrimaryService(
+      "0000ffe5-0000-1000-8000-00805f9b34fb"
+    );
+    txChr = await txPrimary.getCharacteristic(
+      "0000ffe9-0000-1000-8000-00805f9b34fb"
+    );
+  }
+  // Firmware >= 1.15
+  else {
+    rxChr = await primary.getCharacteristic(
+      "0000ffe1-0000-1000-8000-00805f9b34fb"
+    );
+    txChr = await primary.getCharacteristic(
+      "0000ffe2-0000-1000-8000-00805f9b34fb"
+    );
+  }
 
   /**
    * @typedef {Object} DeviceCharacteristics
-   * @property {import("node-ble").GattCharacteristic} txChr - Transmit characteristic
    * @property {import("node-ble").GattCharacteristic} rxChr - Receive characteristic
+   * @property {import("node-ble").GattCharacteristic} txChr - Transmit characteristic
    */
-  return { txChr: txChr, rxChr: rxChr };
+  return { rxChr: rxChr, txChr: txChr };
 };
 
 /**
@@ -268,9 +285,17 @@ process.once("SIGINT", () => {
           new RuntimeError(`Time-out while receiving data from ${deviceName}`)
         ),
       ]);
-      log.debug("Measurements received", data);
-
       await rxChr.stopNotifications();
+
+      /*
+       * No data received – most likely a SIGTERM was raised (which will cause
+       * an exit at the start of the new loop). In case something else went
+       * wrong, the next loop will most likely cause an error that will also
+       * terminate execution.
+       */
+      if (typeof data === "undefined") continue;
+
+      log.debug("Measurements received", data);
 
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
