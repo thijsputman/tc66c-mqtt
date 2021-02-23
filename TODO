@@ -6,6 +6,10 @@
   [`📄 docker/README.md`](./docker/README.md#using-d-bus))
 - Add a device identifier to the `tc66c/` MQTT topic; this allows measurements
   for multiple devices to be handled
+- Upgrade to Node.js 14 (require it in `📄 package.json` and update the Docker
+  container)
+- Add support for additional architectures (`armhf` / `amd64`) to the Docker
+  container
 - Properly manage failures; right now we gracefully shutdown the container
   (regardless of the script's exit code)
   - Build some retry logic into the s6-overlay scripts? Or find a way to
