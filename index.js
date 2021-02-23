@@ -92,17 +92,14 @@ const getDeviceCharacteristics = (device) => {
     (async () => {
       try {
         const gattServer = await device.gatt();
-        const tx = await gattServer.getPrimaryService(
-          "0000ffe5-0000-1000-8000-00805f9b34fb"
-        );
-        txChr = await tx.getCharacteristic(
-          "0000ffe9-0000-1000-8000-00805f9b34fb"
-        );
-        const rx = await gattServer.getPrimaryService(
+        const gattPrimary = await gattServer.getPrimaryService(
           "0000ffe0-0000-1000-8000-00805f9b34fb"
         );
-        rxChr = await rx.getCharacteristic(
-          "0000ffe4-0000-1000-8000-00805f9b34fb"
+        txChr = await gattPrimary.getCharacteristic(
+          "0000ffe2-0000-1000-8000-00805f9b34fb"
+        );
+        rxChr = await gattPrimary.getCharacteristic(
+          "0000ffe1-0000-1000-8000-00805f9b34fb"
         );
       } catch (error) {
         reject(error);
@@ -256,7 +253,9 @@ process.once("SIGINT", () => {
       await rxChr.startNotifications();
       log.debug("Started listening for notifications from %s", deviceName);
 
-      await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
+      await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"), {
+        type: "command",
+      });
       log.debug("Send request for measurements to %s", deviceName);
 
       data = await receiveBuffer(rxChr);
@@ -267,9 +266,9 @@ process.once("SIGINT", () => {
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
       const messages = [
-        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
-        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
-        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
+        ["tc66c_115/voltage_V", decrypted.readInt32LE(48) * 1e-4],
+        ["tc66c_115/current_A", decrypted.readInt32LE(52) * 1e-5],
+        ["tc66c_115/power_W", decrypted.readInt32LE(56) * 1e-4],
       ];
 
       /*
