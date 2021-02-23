@@ -5,7 +5,7 @@ set -euo pipefail
 
 if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
 
-  if ! getent group "$PGID" > /dev/null 2>&1 ; then
+  if ! grep -qE "(^|:)$PGID:" /etc/group ; then
     addgroup -S "$PGID"
   fi
 
