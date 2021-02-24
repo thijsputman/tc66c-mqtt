@@ -309,9 +309,9 @@ process.once("SIGINT", () => {
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
       const messages = [
-        ["tc66c_115/voltage_V", decrypted.readInt32LE(48) * 1e-4],
-        ["tc66c_115/current_A", decrypted.readInt32LE(52) * 1e-5],
-        ["tc66c_115/power_W", decrypted.readInt32LE(56) * 1e-4],
+        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
+        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
+        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
       ];
 
       /*
