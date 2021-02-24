@@ -53,4 +53,4 @@ jobs:
             thijsputman/tc66c-mqtt:latest
       - name: Push to Docker Hub
         run: |
-          docker push thijsputman/tc66c-mqtt
+          docker push --all-tags thijsputman/tc66c-mqtt
