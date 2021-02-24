@@ -46,6 +46,7 @@ const config = {
   mqttBroker: "",
   interval: 2000,
   logLevel: "info",
+  deviceAlias: "",
 };
 const argv = parseArgs(process.argv.slice(2));
 
@@ -53,9 +54,6 @@ const argv = parseArgs(process.argv.slice(2));
 config.bleAddress = argv.bleAddress || argv._[0];
 config.mqttBroker = argv.mqttBroker || argv._[1];
 
-if (typeof argv.interval !== "undefined") {
-  config.interval = Number(argv.interval);
-}
 if (["debug", "info", "warn", "error"].indexOf(argv.logLevel) > -1) {
   config.logLevel = argv.logLevel;
 }
@@ -66,6 +64,14 @@ if (!config.bleAddress || !config.mqttBroker) {
   log.error("Incomplete configuration", config);
   process.exit(1);
 }
+
+if (typeof argv.interval !== "undefined") {
+  config.interval = Number(argv.interval);
+}
+if (typeof argv.deviceAlias === "undefined") {
+  argv.deviceAlias = config.bleAddress.toLowerCase();
+}
+config.deviceAlias = String(argv.deviceAlias).replace(/[\W]+/g, "_");
 
 /**
  * Get receive-characteristic and requestData-helper from the TC66C-device.
@@ -309,9 +315,18 @@ process.once("SIGINT", () => {
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
       const messages = [
-        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
-        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
-        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
+        [
+          `tc66c/${config.deviceAlias}/voltage_V`,
+          decrypted.readInt32LE(48) * 1e-4,
+        ],
+        [
+          `tc66c/${config.deviceAlias}/current_A`,
+          decrypted.readInt32LE(52) * 1e-5,
+        ],
+        [
+          `tc66c/${config.deviceAlias}/power_W`,
+          decrypted.readInt32LE(56) * 1e-4,
+        ],
       ];
 
       /*
