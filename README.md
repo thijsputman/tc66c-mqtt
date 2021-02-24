@@ -1,4 +1,4 @@
-<!-- markdownlint-disable no-inline-html -->
+<!-- markdownlint-disable no-inline-html first-line-h1 -->
 <p>
   <img
     src="https://github.com/thijsputman/tc66c-mqtt/workflows/Lint%20codebase/badge.svg?branch=main"
@@ -28,7 +28,7 @@ a configurable interval.
   - [Docker](#docker)
   - [Long running service](#long-running-service)
 - [Subscribe to the MQTT Topic](#subscribe-to-the-mqtt-topic)
-- [References](#references)
+- [To-do](#to-do)
 
 ## Prerequisites
 
@@ -36,17 +36,22 @@ a configurable interval.
 
 The TC66C is a USB-C load meter that communicates its measurements over
 Bluetooth Low Energy –
-[you'll need one of these](https://www.aliexpress.com/item/32968303350.html) to
+[you'll need one of them](https://www.aliexpress.com/item/32968303350.html) to
 be able to retrieve actual measurements...
 
 ![TC66C diagram](./docs/TC66C_buttons.jpg)
 
 After prolonged periods of use (and/or after repeatedly
-connecting/disconnecting), the TC66C may stop accepting Bluetooth connections.
+connecting/disconnecting), the TC66C may stop accepting Bluetooth connections
+(_or_, might still accept connections, but refuse to respond to any subsequent
+commands issued).
+
 The easiest way to recover from this, is to toggle the dip-switch marked **C**
 in the above picture back and forth. This switches the TC66C from drawing power
 over USB-C to its (unpowered) micro USB port, effectively resetting the unit
 (_without_ cutting power to the device connected to the TC66C's USB-C port).
+
+For more details regarding the TC66C, see [`📄 docs/TC66C.md`](./docs/TC66C.md).
 
 ### Hardware & OS
 
@@ -67,7 +72,9 @@ The only tested/supported configuration is the following though:
 
 The default `interval` at which measurements are fetched and returned is 2,000
 ms. Use `--interval 0` to disable the interval and fetch measurements as fast as
-possible (on my RPi4 this maxes out at around 800 ms).
+possible. The maximum retrieval speed appears mainly dependent on the hardware
+revision of your TC66C unit. The newer units (firmware 1.15) return in around
+500 ms, the older units (firmware 1.14) in around 800 ms.
 
 The default `logLevel` is `info`. You can optionally change it into `debug` to
 get (a lot) more output, or to `warn` or `error` to get virtually no feedback.
@@ -173,9 +180,6 @@ the messages are sent out properly.
 mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 ```
 
-## References
+## To-do
 
-1. <https://sigrok.org/wiki/RDTech_TC66C>
-2. <https://ralimtek.com/reverse%20engineering/software/tc66c-reverse-engineering/>
-3. <https://github.com/chrvadala/node-ble>
-4. [`📄 TODO`](./TODO)
+See [`📄 TODO`](./TODO).

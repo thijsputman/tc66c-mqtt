@@ -68,49 +68,58 @@ if (!config.bleAddress || !config.mqttBroker) {
 }
 
 /**
- * Get transmit and receive characteristic for the TC66C-device.
+ * Get receive-characteristic and requestData-helper from the TC66C-device.
  *
  * @param {import("node-ble").Device} device
- * @return {Promise<Object>}
- * @return {import("node-ble").GattCharacteristic} Transmit characteristic
- * @return {import("node-ble").GattCharacteristic} Receive characteristic
- * @throws {RuntimeException} If no characteristics retrieved after 5 seconds.
+ * @return {DeviceCharacteristics}
  */
-const getDeviceCharacteristics = (device) => {
-  let resolved = false;
-  return new Promise((resolve, reject) => {
-    // 5 Second timeout on getting device characteristics
-    setTimeout(() => {
-      if (!resolved) {
-        reject(new RuntimeError("Timeout in getDeviceCharacteristics()"));
-      }
-    }, 5000);
+const getDeviceCharacteristics = async (device) => {
+  let txChr;
+  let rxChr;
+  let commandType = "command";
 
-    let txChr;
-    let rxChr;
+  const requestData = async () => {
+    await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"), {
+      type: commandType,
+    });
+  };
 
-    (async () => {
-      try {
-        const gattServer = await device.gatt();
-        const tx = await gattServer.getPrimaryService(
-          "0000ffe5-0000-1000-8000-00805f9b34fb"
-        );
-        txChr = await tx.getCharacteristic(
-          "0000ffe9-0000-1000-8000-00805f9b34fb"
-        );
-        const rx = await gattServer.getPrimaryService(
-          "0000ffe0-0000-1000-8000-00805f9b34fb"
-        );
-        rxChr = await rx.getCharacteristic(
-          "0000ffe4-0000-1000-8000-00805f9b34fb"
-        );
-      } catch (error) {
-        reject(error);
-      }
-      resolved = true;
-      resolve({ txChr: txChr, rxChr: rxChr });
-    })();
-  });
+  const gatt = await device.gatt();
+  const services = await gatt.services();
+
+  const primary = await gatt.getPrimaryService(
+    "0000ffe0-0000-1000-8000-00805f9b34fb"
+  );
+
+  // Firmware <= 1.14
+  if (services.includes("0000ffe5-0000-1000-8000-00805f9b34fb")) {
+    commandType = "reliable";
+    rxChr = await primary.getCharacteristic(
+      "0000ffe4-0000-1000-8000-00805f9b34fb"
+    );
+    const txPrimary = await gatt.getPrimaryService(
+      "0000ffe5-0000-1000-8000-00805f9b34fb"
+    );
+    txChr = await txPrimary.getCharacteristic(
+      "0000ffe9-0000-1000-8000-00805f9b34fb"
+    );
+  }
+  // Firmware >= 1.15
+  else {
+    rxChr = await primary.getCharacteristic(
+      "0000ffe1-0000-1000-8000-00805f9b34fb"
+    );
+    txChr = await primary.getCharacteristic(
+      "0000ffe2-0000-1000-8000-00805f9b34fb"
+    );
+  }
+
+  /**
+   * @typedef {Object} DeviceCharacteristics
+   * @property {import("node-ble").GattCharacteristic} rxChr - Receive characteristic
+   * @property {Function} requestData - Request data from device
+   */
+  return { rxChr: rxChr, requestData: requestData };
 };
 
 /**
@@ -121,20 +130,12 @@ const getDeviceCharacteristics = (device) => {
  *
  * @param {import("node-ble").GattCharacteristic} rxChr Receive characteristic
  * @return {Promise<Buffer>}
- * @throws {RuntimeException} If not a full buffer received after 5 seconds.
  * @throws {RuntimeException} If total buffer length exceeds 192 bytes.
  */
 const receiveBuffer = (rxChr) => {
   const response = [];
   let length = 0;
-  let resolved = false;
   return new Promise((resolve, reject) => {
-    // 5 Second timeout on receiving data
-    setTimeout(() => {
-      if (!resolved) {
-        reject(new RuntimeError("Timeout in receiveBuffer()"));
-      }
-    }, 5000);
     const onValueChanged = (buffer) => {
       response.push(buffer);
       length += buffer.length;
@@ -147,7 +148,6 @@ const receiveBuffer = (rxChr) => {
          */
         rxChr.removeListener("valuechanged", onValueChanged);
         if (length === 192) {
-          resolved = true;
           resolve(Buffer.concat(response));
         }
         reject(new RuntimeError(`Buffer length ${length} exceeds 192`));
@@ -159,6 +159,14 @@ const receiveBuffer = (rxChr) => {
 
 const wait = (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const waitRuntimeError = (ms, error = new RuntimeError()) => {
+  return new Promise((resolve, reject) =>
+    setTimeout(() => {
+      reject(error);
+    }, ms)
+  );
 };
 
 const sendMQTT = async (mqttClient, messages) => {
@@ -207,8 +215,9 @@ process.once("SIGINT", () => {
   const adapter = await bluetooth.defaultAdapter();
   log.debug("Is Bluetooth powered?", await adapter.isPowered());
 
-  // It appears starting discovery is needed to (reliably) connect
+  // Discovery is required to reliably connect
   if (!(await adapter.isDiscovering())) {
+    log.debug("Bluetooth-discovery started...");
     await adapter.startDiscovery();
   }
 
@@ -226,18 +235,38 @@ process.once("SIGINT", () => {
       );
     }
 
-    await Promise.race([device.connect(), resolveOnSIGTERM]);
+    await Promise.race([
+      device.connect(),
+      resolveOnSIGTERM,
+      waitRuntimeError(
+        30000,
+        new RuntimeError(`Time-out while connecting to ${config.bleAddress}`)
+      ),
+    ]);
     deviceName = await device.getName();
 
     /*
-     * It (again, appears) critical to stop discovery once we've connected to
-     * the device. If we don't to do this, discovery remains active,causing
-     * major interference on the 2.4 GHz band (i.e. if the RPi is connected via
-     * 2.4 GHz WiFi, connectivity starts to lag like crazy).
+     * Stop discovery once we've connected to the device. If we don't to do
+     * this, discovery remains active, causing major interference on the 2.4 GHz
+     * band (i.e. if the RPi is connected via 2.4 GHz WiFi, connectivity starts
+     * to lag like crazy).
      */
-    await adapter.stopDiscovery();
+    if (await adapter.isDiscovering()) {
+      log.debug("Bluetooth-discovery stopped");
+      await adapter.stopDiscovery();
+    }
 
-    const { txChr, rxChr } = await getDeviceCharacteristics(device);
+    log.debug("Requesting characteristics from %s...", deviceName);
+    const { rxChr, requestData } = await Promise.race([
+      getDeviceCharacteristics(device),
+      resolveOnSIGTERM,
+      waitRuntimeError(
+        15000,
+        new RuntimeError(
+          `Time-out while retrieving characteristics from ${deviceName}`
+        )
+      ),
+    ]);
 
     log.info(
       "Connected to Bluetooth-device %s; characteristics received",
@@ -252,20 +281,37 @@ process.once("SIGINT", () => {
       }
 
       await rxChr.startNotifications();
-      await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"));
+      log.debug("Started listening for notifications from %s", deviceName);
+
+      await requestData();
       log.debug("Send request for measurements to %s", deviceName);
 
-      data = await receiveBuffer(rxChr);
-      log.debug("Measurements received", data);
-
+      data = await Promise.race([
+        receiveBuffer(rxChr),
+        resolveOnSIGTERM,
+        waitRuntimeError(
+          5000,
+          new RuntimeError(`Time-out while receiving data from ${deviceName}`)
+        ),
+      ]);
       await rxChr.stopNotifications();
+
+      /*
+       * No data received – most likely a SIGTERM was raised (which will cause
+       * an exit at the start of the new loop). In case something else went
+       * wrong, the next loop will most likely cause an error that will also
+       * terminate execution.
+       */
+      if (typeof data === "undefined") continue;
+
+      log.debug("Measurements received", data);
 
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
       const messages = [
-        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
-        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
-        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
+        ["tc66c_115/voltage_V", decrypted.readInt32LE(48) * 1e-4],
+        ["tc66c_115/current_A", decrypted.readInt32LE(52) * 1e-5],
+        ["tc66c_115/power_W", decrypted.readInt32LE(56) * 1e-4],
       ];
 
       /*
@@ -321,6 +367,10 @@ process.once("SIGINT", () => {
   log.info("Disconnected from MQTT broker");
 
   try {
+    if (await adapter.isDiscovering()) {
+      log.debug("Bluetooth-discovery stopped");
+      await adapter.stopDiscovery();
+    }
     await device.disconnect();
     destroy();
     log.info("Disconnected from Bluetooth-device %s", deviceName);
