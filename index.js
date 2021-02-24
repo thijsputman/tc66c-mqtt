@@ -68,7 +68,7 @@ if (!config.bleAddress || !config.mqttBroker) {
 }
 
 /**
- * Get transmit and receive characteristic for the TC66C-device.
+ * Get receive-characteristic and requestData-helper from the TC66C-device.
  *
  * @param {import("node-ble").Device} device
  * @return {DeviceCharacteristics}
@@ -76,6 +76,13 @@ if (!config.bleAddress || !config.mqttBroker) {
 const getDeviceCharacteristics = async (device) => {
   let txChr;
   let rxChr;
+  let commandType = "command";
+
+  const requestData = async () => {
+    await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"), {
+      type: commandType,
+    });
+  };
 
   const gatt = await device.gatt();
   const services = await gatt.services();
@@ -86,6 +93,7 @@ const getDeviceCharacteristics = async (device) => {
 
   // Firmware <= 1.14
   if (services.includes("0000ffe5-0000-1000-8000-00805f9b34fb")) {
+    commandType = "reliable";
     rxChr = await primary.getCharacteristic(
       "0000ffe4-0000-1000-8000-00805f9b34fb"
     );
@@ -109,9 +117,9 @@ const getDeviceCharacteristics = async (device) => {
   /**
    * @typedef {Object} DeviceCharacteristics
    * @property {import("node-ble").GattCharacteristic} rxChr - Receive characteristic
-   * @property {import("node-ble").GattCharacteristic} txChr - Transmit characteristic
+   * @property {Function} requestData - Request data from device
    */
-  return { rxChr: rxChr, txChr: txChr };
+  return { rxChr: rxChr, requestData: requestData };
 };
 
 /**
@@ -209,6 +217,7 @@ process.once("SIGINT", () => {
 
   // Discovery is required to reliably connect
   if (!(await adapter.isDiscovering())) {
+    log.debug("Bluetooth-discovery started...");
     await adapter.startDiscovery();
   }
 
@@ -230,7 +239,7 @@ process.once("SIGINT", () => {
       device.connect(),
       resolveOnSIGTERM,
       waitRuntimeError(
-        20000,
+        30000,
         new RuntimeError(`Time-out while connecting to ${config.bleAddress}`)
       ),
     ]);
@@ -243,14 +252,16 @@ process.once("SIGINT", () => {
      * to lag like crazy).
      */
     if (await adapter.isDiscovering()) {
+      log.debug("Bluetooth-discovery stopped");
       await adapter.stopDiscovery();
     }
 
-    const { txChr, rxChr } = await Promise.race([
+    log.debug("Requesting characteristics from %s...", deviceName);
+    const { rxChr, requestData } = await Promise.race([
       getDeviceCharacteristics(device),
       resolveOnSIGTERM,
       waitRuntimeError(
-        5000,
+        15000,
         new RuntimeError(
           `Time-out while retrieving characteristics from ${deviceName}`
         )
@@ -272,9 +283,7 @@ process.once("SIGINT", () => {
       await rxChr.startNotifications();
       log.debug("Started listening for notifications from %s", deviceName);
 
-      await txChr.writeValue(Buffer.from("bgetva\r\n", "ascii"), {
-        type: "command",
-      });
+      await requestData();
       log.debug("Send request for measurements to %s", deviceName);
 
       data = await Promise.race([
@@ -359,6 +368,7 @@ process.once("SIGINT", () => {
 
   try {
     if (await adapter.isDiscovering()) {
+      log.debug("Bluetooth-discovery stopped");
       await adapter.stopDiscovery();
     }
     await device.disconnect();
