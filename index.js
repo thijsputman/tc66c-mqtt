@@ -46,6 +46,7 @@ const config = {
   mqttBroker: "",
   interval: 2000,
   logLevel: "info",
+  deviceAlias: "",
 };
 const argv = parseArgs(process.argv.slice(2));
 
@@ -53,9 +54,6 @@ const argv = parseArgs(process.argv.slice(2));
 config.bleAddress = argv.bleAddress || argv._[0];
 config.mqttBroker = argv.mqttBroker || argv._[1];
 
-if (typeof argv.interval !== "undefined") {
-  config.interval = Number(argv.interval);
-}
 if (["debug", "info", "warn", "error"].indexOf(argv.logLevel) > -1) {
   config.logLevel = argv.logLevel;
 }
@@ -66,6 +64,14 @@ if (!config.bleAddress || !config.mqttBroker) {
   log.error("Incomplete configuration", config);
   process.exit(1);
 }
+
+if (typeof argv.interval !== "undefined") {
+  config.interval = Number(argv.interval);
+}
+if (typeof argv.deviceAlias === "undefined") {
+  argv.deviceAlias = config.bleAddress.toLowerCase();
+}
+config.deviceAlias = String(argv.deviceAlias).replace(/[\W]+/g, "_");
 
 /**
  * Get receive-characteristic and requestData-helper from the TC66C-device.
@@ -204,14 +210,6 @@ process.once("SIGINT", () => {
 });
 
 (async () => {
-  const mqttClient = await MQTT.connectAsync(`tcp://${config.mqttBroker}`);
-  log.info("Connected to MQTT broker at %s", `tcp://${config.mqttBroker}`);
-
-  // Initialise MQTT Promise as no-op (i.e. resolve immediately)
-  let mqttPromise = new Promise((resolve) => {
-    resolve();
-  });
-
   const adapter = await bluetooth.defaultAdapter();
   log.debug("Is Bluetooth powered?", await adapter.isPowered());
 
@@ -221,14 +219,27 @@ process.once("SIGINT", () => {
     await adapter.startDiscovery();
   }
 
-  log.info("Connecting to %s, this may take a while...", config.bleAddress);
-  const device = await Promise.race([
-    adapter.waitDevice(config.bleAddress),
-    resolveOnSIGTERM,
-  ]);
+  let device;
   let deviceName = "<unknown>";
+  let mqttClient;
+  // Initialise MQTT Promise as no-op (i.e. resolve immediately)
+  let mqttPromise = new Promise((resolve) => {
+    resolve();
+  });
 
   try {
+    log.info("Connecting to %s, this may take a while...", config.bleAddress);
+    device = await Promise.race([
+      adapter.waitDevice(config.bleAddress),
+      resolveOnSIGTERM,
+      waitRuntimeError(
+        30000,
+        new RuntimeError(
+          `Time-out while waiting for ${config.bleAddress} to respond`
+        )
+      ),
+    ]);
+
     if (typeof device === "undefined") {
       throw new RuntimeError(
         `Device ${config.bleAddress} not available, aborting`
@@ -255,6 +266,9 @@ process.once("SIGINT", () => {
       log.debug("Bluetooth-discovery stopped");
       await adapter.stopDiscovery();
     }
+
+    mqttClient = await MQTT.connectAsync(`tcp://${config.mqttBroker}`);
+    log.info("Connected to MQTT broker at %s", `tcp://${config.mqttBroker}`);
 
     log.debug("Requesting characteristics from %s...", deviceName);
     const { rxChr, requestData } = await Promise.race([
@@ -309,9 +323,18 @@ process.once("SIGINT", () => {
       const decipher = crypto.createDecipheriv(keyAlgorithm, key, "");
       const decrypted = decipher.update(data);
       const messages = [
-        ["tc66c/voltage_V", decrypted.readInt32LE(48) * 1e-4],
-        ["tc66c/current_A", decrypted.readInt32LE(52) * 1e-5],
-        ["tc66c/power_W", decrypted.readInt32LE(56) * 1e-4],
+        [
+          `tc66c/${config.deviceAlias}/voltage_V`,
+          decrypted.readInt32LE(48) * 1e-4,
+        ],
+        [
+          `tc66c/${config.deviceAlias}/current_A`,
+          decrypted.readInt32LE(52) * 1e-5,
+        ],
+        [
+          `tc66c/${config.deviceAlias}/power_W`,
+          decrypted.readInt32LE(56) * 1e-4,
+        ],
       ];
 
       /*
@@ -363,17 +386,21 @@ process.once("SIGINT", () => {
   } catch (error) {
     // Promise (most likely) already rejected; no need to wait any further...
   }
-  await mqttClient.end();
-  log.info("Disconnected from MQTT broker");
+  if (typeof mqttClient !== "undefined") {
+    await mqttClient.end();
+    log.info("Disconnected from MQTT broker");
+  }
 
   try {
     if (await adapter.isDiscovering()) {
       log.debug("Bluetooth-discovery stopped");
       await adapter.stopDiscovery();
     }
-    await device.disconnect();
-    destroy();
-    log.info("Disconnected from Bluetooth-device %s", deviceName);
+    if (typeof device !== "undefined") {
+      await device.disconnect();
+      destroy();
+      log.info("Disconnected from Bluetooth-device %s", deviceName);
+    }
   } catch (error) {
     // Device (most likely) not connected (anymore); no need to bother...
   }

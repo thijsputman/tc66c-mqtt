@@ -4,7 +4,8 @@
   "description": "TC66C-MQTT bridge",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:docker:local": "docker build -t tc66c-mqtt ."
   },
   "author": "Thijs Putman <thijs@sgraastra.net>",
   "license": "BSD-3-Clause",
