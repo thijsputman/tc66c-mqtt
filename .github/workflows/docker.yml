@@ -34,8 +34,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'release' && github.event.action == 'published')
+      (github.event_name == 'push' &&
+        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      )
     environment: production
     steps:
       - name: Login to Docker Hub
@@ -60,7 +61,7 @@ jobs:
     name: Tag release on Docker Hub
     needs: push
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: production
     steps:
       - name: Login to Docker Hub
