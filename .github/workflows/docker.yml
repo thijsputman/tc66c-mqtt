@@ -54,3 +54,24 @@ jobs:
       - name: Push to Docker Hub
         run: |
           docker push --all-tags thijsputman/tc66c-mqtt
+  tag:
+    name: Tag release on Docker Hub
+    needs: push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: production
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tag Docker image
+        run: |
+          ref=(${GITHUB_REF//\// })
+          tag=${ref[2]}
+          if [[ ${tag:0:1} == "v" ]] ; then
+            tag=${tag:1}
+          fi
+          docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
+            thijsputman/tc66c-mqtt:"$tag"
