@@ -29,14 +29,11 @@ jobs:
           name: buildx
           path: /tmp/buildx.tar
           retention-days: 5
-  push:
-    name: Push to Docker Hub
+  push_latest:
+    name: Push to Docker Hub (latest)
     needs: build
     runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'push' &&
-        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-      )
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
     steps:
       - name: Login to Docker Hub
@@ -57,9 +54,9 @@ jobs:
       - name: Push to Docker Hub
         run: |
           docker push --all-tags thijsputman/tc66c-mqtt
-  tag:
-    name: Tag release on Docker Hub
-    needs: push
+  push_stable:
+    name: Push to Docker Hub (stable)
+    needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: production
@@ -69,12 +66,23 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Tag Docker image
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: buildx
+          path: /tmp
+      - name: Load and tag Docker image
         run: |
           ref=(${GITHUB_REF//\// })
           tag=${ref[2]}
           if [[ ${tag:0:1} == "v" ]] ; then
             tag=${tag:1}
           fi
+          docker load --input /tmp/buildx.tar
+          docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
+            thijsputman/tc66c-mqtt:stable
           docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             thijsputman/tc66c-mqtt:"$tag"
+      - name: Push to Docker Hub
+        run: |
+          docker push --all-tags thijsputman/tc66c-mqtt
