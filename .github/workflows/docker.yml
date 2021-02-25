@@ -29,8 +29,8 @@ jobs:
           name: buildx
           path: /tmp/buildx.tar
           retention-days: 5
-  push_latest:
-    name: Push to Docker Hub (latest)
+  push_main:
+    name: Push to Docker Hub (main)
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -54,8 +54,8 @@ jobs:
       - name: Push to Docker Hub
         run: |
           docker push --all-tags thijsputman/tc66c-mqtt
-  push_stable:
-    name: Push to Docker Hub (stable)
+  push_tag:
+    name: Push to Docker Hub (tag)
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -79,6 +79,8 @@ jobs:
             tag=${tag:1}
           fi
           docker load --input /tmp/buildx.tar
+          docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
+            thijsputman/tc66c-mqtt:latest
           docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             thijsputman/tc66c-mqtt:stable
           docker tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
