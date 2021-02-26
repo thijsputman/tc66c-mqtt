@@ -2,7 +2,7 @@ name: Docker push
 
 on:
   push:
-    branches: ["main", "docker-github-actions"]
+    branches: ["main"]
     tags: ["**"]
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
       # Every commit to the main-branch gets published to Docker Hub tagged
       # under its commit-hash.
       - name: Build and push (main)
-      # if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         run: |
           docker build \
             --tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
@@ -49,11 +49,15 @@ jobs:
           if [[ "$tag" =~ ^v[0-9]+\. ]] ; then
             tag=${tag:1}
           fi
+          if [[ "$tag" =~ ^(latest|stable)$ ]]; then
+            echo Tag \""$tag"\" is invalid!
+            exit 1
+          fi
           stable=()
           if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
             stable=(--tag thijsputman/tc66c-mqtt:stable)
           fi
-          docker build \
+          echo docker build \
             --tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             --tag thijsputman/tc66c-mqtt:latest \
             --tag thijsputman/tc66c-mqtt:"$tag" "${stable[@]}" \
