@@ -44,7 +44,7 @@ jobs:
           docker build \
             --tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             --output type=docker \
-            --platform linux/arm64,linux/armv7,linux/amd64 \
+            --platform linux/arm64 \
             .
   tagMain:
     name: Tag image (main-branch)
