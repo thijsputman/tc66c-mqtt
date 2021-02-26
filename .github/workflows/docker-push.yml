@@ -57,7 +57,7 @@ jobs:
           if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
             stable=(--tag thijsputman/tc66c-mqtt:stable)
           fi
-          echo docker build \
+          docker build \
             --tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
             --tag thijsputman/tc66c-mqtt:latest \
             --tag thijsputman/tc66c-mqtt:"$tag" "${stable[@]}" \
