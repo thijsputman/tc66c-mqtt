@@ -54,7 +54,8 @@ jobs:
       (
         needs.pull.outputs.result == 'success' ||
         needs.build.result == 'success'
-      ) && github.ref == 'refs/heads/main' && always()
+      ) && always()
+    # ) && github.ref == 'refs/heads/main' && always()
     environment: production
     steps:
       - name: Tag Docker image
@@ -103,6 +104,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-    # - name: Push to Docker Hub
-    #   run: |
-    #     docker push --all-tags thijsputman/tc66c-mqtt
+      - name: Push to Docker Hub
+        run: |
+          docker push --all-tags thijsputman/tc66c-mqtt
