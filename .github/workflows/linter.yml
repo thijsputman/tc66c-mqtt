@@ -2,8 +2,7 @@ name: Lint codebase
 
 on:
   push:
-    tags-ignore:
-    - "**"
+    tags-ignore: ["**"]
   pull_request:
     branches: [main]
 jobs:

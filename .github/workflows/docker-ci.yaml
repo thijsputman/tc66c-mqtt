@@ -1,0 +1,74 @@
+name: Docker CI
+
+on:
+  push:
+    branches-ignore: ["main"]
+    tags-ignore: ["**"]
+
+jobs:
+  ci:
+    name: Build Docker image
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          install: true
+      # Multi-arch builds run in parallel and are thus much faster than a set
+      # of single-arch builds. Subsequent builds leverage the same build-cache,
+      # so nothing gets build twice...
+      - name: Build image (multi-arch)
+        run: |
+          tag="${GITHUB_SHA:0:7}"
+          echo docker_tag="$tag" >> $GITHUB_ENV
+          docker build \
+            --tag thijsputman/tc66c-mqtt:"$tag" \
+            --platform linux/arm64/v8,linux/arm/v7,linux/amd64 \
+            .
+      # Build and upload a separate Docker image for each architecture (to
+      # facilitate testing – the images are not available anywhere else).
+      # Separating the artifacts is out of convenience (otherwise one would
+      # need to download a single big artifact containing all images).
+      - name: Build image (ARM64)
+        run: |
+          docker build \
+            --tag thijsputman/tc66c-mqtt:"${{ env.docker_tag }}" \
+            --output type=docker,dest=/tmp/buildx-arm64.tar \
+            --platform linux/arm64/v8 \
+            .
+      - name: Upload artifact (ARM64)
+        uses: actions/upload-artifact@v2
+        with:
+          name: buildx-arm64
+          path: /tmp/buildx-arm64.tar
+          retention-days: 30
+      - name: Build image (ARMv7)
+        run: |
+          docker build \
+            --tag thijsputman/tc66c-mqtt:"${{ env.docker_tag }}" \
+            --output type=docker,dest=/tmp/buildx-armv7.tar \
+            --platform linux/arm/v7 \
+            .
+      - name: Upload artifact (ARMv7)
+        uses: actions/upload-artifact@v2
+        with:
+          name: buildx-armv7
+          path: /tmp/buildx-armv7.tar
+          retention-days: 30
+      - name: Build image (AMD64)
+        run: |
+          docker build \
+            --tag thijsputman/tc66c-mqtt:"${{ env.docker_tag }}" \
+            --output type=docker,dest=/tmp/buildx-amd64.tar \
+            --platform linux/amd64 \
+            .
+      - name: Upload artifact (AMD64)
+        uses: actions/upload-artifact@v2
+        with:
+          name: buildx-amd64
+          path: /tmp/buildx-amd64.tar
+          retention-days: 30
