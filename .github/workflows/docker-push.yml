@@ -2,7 +2,7 @@ name: Docker push
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "docker-github-actions"]
     tags: ["**"]
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
       # Every commit to the main-branch gets published to Docker Hub tagged
       # under its commit-hash.
       - name: Build and push (main)
-        if: github.ref == 'refs/heads/main'
+      # if: github.ref == 'refs/heads/main'
         run: |
           docker build \
             --tag thijsputman/tc66c-mqtt:"${GITHUB_SHA:0:7}" \
