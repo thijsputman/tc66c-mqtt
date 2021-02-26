@@ -114,7 +114,8 @@ mosquitto_sub -h <mqtt-broker> -t "tc66c/#"
 
 Alternatively, you can use
 [the pre-built Docker image](https://hub.docker.com/r/thijsputman/tc66c-mqtt).
-Note that the Docker image currently is only available for **`aarch64`**!
+The Docker image is available for `aarch64`, `armhf`/`armv7` and `amd64`. Note
+that _only_ the **`aarch64`** image is actively tested.
 
 In this case, there's no need to `npm install` nor to configure D-Bus.
 
@@ -141,10 +142,10 @@ is via `docker-compose up [-d]`:
 `📄 docker-compose.yml`
 
 ```yaml
-version: "3.7"
+version: "2.3"
 services:
   tc66c-mqtt:
-    image: thijsputman/tc66c-mqtt:latest
+    image: thijsputman/tc66c-mqtt:stable
     security_opt:
       - apparmor=docker-ble
     volumes:
