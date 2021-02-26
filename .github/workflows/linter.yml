@@ -10,6 +10,7 @@ jobs:
   lint:
     name: Lint codebase
     runs-on: ubuntu-latest
+    environment: ci
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
