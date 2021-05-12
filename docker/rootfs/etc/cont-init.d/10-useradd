@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv ash
 # shellcheck shell=ash
 
-set -euo pipefail
+set -eo pipefail
 
 if [ -n "$PUID" ] && [ -n "$PGID" ] ; then
 
