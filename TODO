@@ -2,13 +2,17 @@
 
 # ToDo
 
-- Refine the custom AppArmor-policy (see
-  [`📄 docker/README.md`](./docker/README.md#using-d-bus))
-- Upgrade to Node.js 14 (require it in `📄 package.json` and update the Docker
-  container)
-- Add support for additional architectures (`armhf` / `amd64`) to the Docker
-  container
-- Properly manage failures; right now we gracefully shutdown the container
-  (regardless of the script's exit code)
+- [ ] Refine the custom AppArmor-policy (see
+      [`📄 docker/README.md`](./docker/README.md#using-d-bus))
+- [ ] Upgrade to Node.js 14 (require it in `📄 package.json` and update the
+      Docker container)
+- [ ] Add support for additional architectures (`armhf` / `amd64`) to the Docker
+      container
+- [ ] Properly manage failures; right now we gracefully shutdown the container
+      (regardless of the script's exit code)
   - Build some retry logic into the s6-overlay scripts? Or find a way to
     "escalate" the problem out of the container?
+- [ ] The multi-arch Dockers don't actually work... 😳
+  - The `📄 Dockerfile` is hardcoded to using `arm64v8/node:12-alpine3.12` as
+    its base image _and_ I'm pulling in the `s6-overlay-aarch64-installer`
+    regardless of the target architecture... 🤐
