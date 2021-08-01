@@ -21,7 +21,7 @@ jobs:
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v1.1.0
       - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v1.3.0
+        uses: docker/setup-buildx-action@v1.5.1
         with:
           install: true
       # Every commit to the main-branch gets published to Docker Hub tagged
