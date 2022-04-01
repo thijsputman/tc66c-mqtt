@@ -17,7 +17,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Checkout code
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v3
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v1.1.0
       - name: Setup Docker buildx
