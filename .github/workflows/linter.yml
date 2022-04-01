@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Lint codebase
-        uses: github/super-linter@v3.17.0
+        uses: github/super-linter@v4.9.1
         env:
           VALIDATE_ALL_CODEBASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           LINTER_RULES_PATH: .
